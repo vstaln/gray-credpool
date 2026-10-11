@@ -140,19 +140,12 @@ pub fn classify_reason(code: Option<u16>) -> &'static str {
     }
 }
 
-/// Statuses that justify rotating to another key: auth/quota/throttle and
-/// transient upstream 5xx. 400/404/422 are request problems — rotating
-/// replays the same failure.
+/// Statuses that justify rotating to another key: account-scoped failures
+/// only (auth/billing/throttle). 5xx and transport errors say nothing
+/// about the account and may already have been billed — resending the
+/// same prompt under a different key double-bills the turn.
 pub fn is_rotatable_status(code: Option<u16>) -> bool {
-    match code {
-        Some(401) | Some(402) | Some(403) | Some(408) | Some(409) | Some(429) => true,
-        Some(s) if s >= 500 => true,
-        // Transport failure (no HTTP status): another key rarely helps but
-        // retrying the same one never does either; rotate so one flakey
-        // credential does not pin the pool.
-        None => true,
-        _ => false,
-    }
+    matches!(code, Some(401) | Some(402) | Some(403) | Some(429))
 }
 
 fn sole(pool: &crate::store::PoolFile) -> bool {
