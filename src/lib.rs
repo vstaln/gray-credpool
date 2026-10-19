@@ -50,14 +50,31 @@ pub fn pool_path() -> anyhow::Result<std::path::PathBuf> {
     Ok(gray_home()?.join("credpool.json"))
 }
 
-/// Short random-ish hex id (no rand dep): time nanos ^ pid.
+/// Random hex id: 128 bits of /dev/urandom (time ^ pid hash mix as fallback).
 pub fn hex_id() -> String {
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
+            let mut b = [0u8; 16];
+            if f.read_exact(&mut b).is_ok() {
+                return b.iter().map(|x| format!("{x:02x}")).collect();
+            }
+        }
+    }
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
     use std::time::{SystemTime, UNIX_EPOCH};
     let t = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64)
+        .map(|d| d.as_nanos())
         .unwrap_or(0);
-    format!("{:06x}", (t ^ ((std::process::id() as u64) << 32)) & 0xFF_FFFF)
+    let mix = |salt: u64| {
+        let mut h = RandomState::new().build_hasher();
+        h.write_u128(t ^ ((std::process::id() as u128) << 64) ^ salt as u128);
+        h.finish()
+    };
+    format!("{:016x}{:016x}", mix(0), mix(1))
 }
 
 /// Wall-clock epoch seconds.
