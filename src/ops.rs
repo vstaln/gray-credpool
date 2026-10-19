@@ -281,6 +281,11 @@ pub fn apply(path: &Path, pool_name: &str, activate: bool) -> Result<String, Str
     let tmp = auth_path.with_extension("tmp");
     std::fs::write(&tmp, serde_json::to_string_pretty(&auth).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+    }
     std::fs::rename(&tmp, &auth_path).map_err(|e| e.to_string())?;
     let mut out = format!("wrote selected key to auth.json['{pool_name}']");
     if activate {
@@ -295,6 +300,11 @@ pub fn apply(path: &Path, pool_name: &str, activate: bool) -> Result<String, Str
         let tmp = cfg_path.with_extension("tmp");
         std::fs::write(&tmp, serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+        }
         std::fs::rename(&tmp, &cfg_path).map_err(|e| e.to_string())?;
         out.push_str("; config.json api_key ← selected key (active on next agent start)");
     }
