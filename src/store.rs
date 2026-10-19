@@ -7,8 +7,8 @@
 //!   "watch_tool_errors":false,"models":[],"entries":[{PooledKey}]}}}
 //! ```
 //!
-//! Writes are atomic (tmp + rename) under a `credpool.lock` advisory flock
-//! so a CLI mark and an in-flight relay rotation can't clobber each other.
+//! Writes are atomic (tmp + rename) under a `credpool.lock` advisory file
+//! lock so a CLI mark and an in-flight relay rotation can't clobber each other.
 
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
@@ -95,11 +95,8 @@ fn lock_for(path: &Path) -> anyhow::Result<PoolLock> {
         .write(true)
         .create(true)
         .open(lock_path(path))?;
-    let fd = std::os::unix::io::AsRawFd::as_raw_fd(&file);
-    // Blocking flock: pool mutations are sub-millisecond, waiting is fine.
-    if unsafe { libc::flock(fd, libc::LOCK_EX) } != 0 {
-        anyhow::bail!("flock {} failed", lock_path(path).display());
-    }
+    // Blocking lock: pool mutations are sub-millisecond, waiting is fine.
+    file.lock()?;
     Ok(PoolLock { _file: file })
 }
 
