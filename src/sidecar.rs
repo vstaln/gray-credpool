@@ -8,14 +8,14 @@
 //! - `command/run`     → `/credpool` → CLI verbs as {text}
 //! - `prompt/context`  → pool status injected into the system context
 //! - `tool/after`      → heuristic: bench the last-picked key when a tool
-//!                       result carries an upstream-looking 4xx/5xx marker
+//!   result carries an upstream-looking 4xx/5xx marker
 //! - `plugin/shutdown` → exit (reader thread breaks, queue drains)
 
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{mpsc, Arc, Mutex};
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::cli::Cli;
 use crate::manifest;
@@ -93,16 +93,19 @@ fn tool_call(path: &std::path::Path, params: &Value) -> Value {
                 arg_str(&args, "base_url"),
             )
         })(),
-        "credpool_remove" => (|| {
-            ops::remove(path, required(&args, "provider")?, required(&args, "id")?)
-        })(),
+        "credpool_remove" => {
+            (|| ops::remove(path, required(&args, "provider")?, required(&args, "id")?))()
+        }
         "credpool_mark" => (|| {
             ops::mark(
                 path,
                 required(&args, "provider")?,
                 ops::MarkOpts {
                     id: arg_str(&args, "id").map(str::to_string),
-                    status: args.get("status").and_then(|v| v.as_u64()).map(|v| v as u16),
+                    status: args
+                        .get("status")
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as u16),
                     reason: arg_str(&args, "reason").map(str::to_string),
                     seconds: args.get("seconds").and_then(|v| v.as_f64()),
                     dead: args.get("dead").and_then(|v| v.as_bool()).unwrap_or(false),
@@ -110,9 +113,9 @@ fn tool_call(path: &std::path::Path, params: &Value) -> Value {
             )
         })(),
         "credpool_rotate" => (|| ops::rotate(path, required(&args, "provider")?))(),
-        "credpool_clear" => (|| {
-            ops::clear(path, required(&args, "provider")?, arg_str(&args, "id"))
-        })(),
+        "credpool_clear" => {
+            (|| ops::clear(path, required(&args, "provider")?, arg_str(&args, "id")))()
+        }
         "" => Err("tool/call: missing name".into()),
         other => Err(format!("unknown tool: {other}")),
     };
@@ -126,7 +129,11 @@ fn command_run(path: &std::path::Path, params: &Value) -> Value {
     let argv: Vec<String> = params
         .get("argv")
         .and_then(|a| a.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
         .unwrap_or_default();
     let clap_args: Vec<String> = std::iter::once("credpool".to_string())
         .chain(argv.iter().cloned())
@@ -173,10 +180,7 @@ fn tool_after(path: &std::path::Path, params: &Value) -> Value {
     if !is_error {
         return json!({});
     }
-    let content = params
-        .get("content")
-        .and_then(|c| c.as_str())
-        .unwrap_or("");
+    let content = params.get("content").and_then(|c| c.as_str()).unwrap_or("");
     let status = detect_upstream_status(content);
     let Some(status) = status else {
         return json!({});
@@ -189,7 +193,11 @@ fn tool_after(path: &std::path::Path, params: &Value) -> Value {
         .iter()
         .find(|(_, p)| p.watch_tool_errors)
         .map(|(n, _)| n.clone())
-        .or_else(|| f.default_pool.clone().filter(|d| f.pools.get(d).is_some_and(|p| p.watch_tool_errors)))
+        .or_else(|| {
+            f.default_pool
+                .clone()
+                .filter(|d| f.pools.get(d).is_some_and(|p| p.watch_tool_errors))
+        })
     else {
         return json!({});
     };
@@ -211,7 +219,14 @@ fn tool_after(path: &std::path::Path, params: &Value) -> Value {
 /// status the pool rotates on. Narrow on purpose — the false-positive cost
 /// is a benched key.
 fn detect_upstream_status(content: &str) -> Option<u16> {
-    for needle in ["status 429", "HTTP 429", "429 Too Many", "rate_limit", "status 401", "HTTP 401"] {
+    for needle in [
+        "status 429",
+        "HTTP 429",
+        "429 Too Many",
+        "rate_limit",
+        "status 401",
+        "HTTP 401",
+    ] {
         if content.contains(needle) {
             return Some(if needle.contains("401") { 401 } else { 429 });
         }

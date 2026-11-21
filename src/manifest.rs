@@ -5,15 +5,15 @@
 //! `provider/chat` per-request rotation reachable: gray's host calls it
 //! before every chat request and POSTs to the relay URL it returns.
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 /// Slash command routed through `command/run`.
 pub const COMMAND: &str = "/credpool";
 
 /// CLI verbs the host forwards as `gray credpool <verb>` (completion).
 pub const COMPLETION: &[&str] = &[
-    "add", "remove", "list", "status", "mark", "rotate", "clear", "use", "resolve", "env",
-    "apply", "config", "request", "models", "setup",
+    "add", "remove", "list", "status", "mark", "rotate", "clear", "use", "resolve", "env", "apply",
+    "config", "request", "models", "setup",
 ];
 
 pub fn manifest() -> Value {

@@ -5,7 +5,10 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "gray credpool", about = "Credential pool: multi-key rotation/failover for gray providers")]
+#[command(
+    name = "gray credpool",
+    about = "Credential pool: multi-key rotation/failover for gray providers"
+)]
 pub struct Cli {
     /// Pool file (default: $GRAY_HOME/credpool.json or ~/.gray/credpool.json).
     #[arg(long, global = true, env = "CREDPOOL_FILE")]
@@ -55,11 +58,19 @@ pub enum Cmd {
     /// Demote the current pick to the back of the order.
     Rotate { provider: String },
     /// Lift cooldowns (`--id` for one entry, omit for the pool).
-    Clear { provider: String, #[arg(long)] id: Option<String> },
+    Clear {
+        provider: String,
+        #[arg(long)]
+        id: Option<String>,
+    },
     /// Set the default pool for provider/chat + `/credpool`.
     Use { provider: String },
     /// Print the key that would be selected (`--reveal` prints the material).
-    Resolve { provider: String, #[arg(long)] reveal: bool },
+    Resolve {
+        provider: String,
+        #[arg(long)]
+        reveal: bool,
+    },
     /// Emit `export VAR='<selected key>'` for wrapper scripts.
     Env {
         provider: String,
@@ -127,30 +138,92 @@ pub fn file(cli_file: &Option<PathBuf>) -> Result<PathBuf, String> {
 pub fn run(cli: Cli) -> Result<String, String> {
     let path = file(&cli.file)?;
     match cli.cmd {
-        Cmd::Add { provider, key_ref, label, base_url } =>
-            crate::ops::add(&path, &provider, &key_ref, label.as_deref(), base_url.as_deref()),
+        Cmd::Add {
+            provider,
+            key_ref,
+            label,
+            base_url,
+        } => crate::ops::add(
+            &path,
+            &provider,
+            &key_ref,
+            label.as_deref(),
+            base_url.as_deref(),
+        ),
         Cmd::Remove { provider, id } => crate::ops::remove(&path, &provider, &id),
-        Cmd::List { provider } | Cmd::Status { provider } =>
-            crate::ops::status(&path, provider.as_deref()),
-        Cmd::Mark { provider, id, status, reason, seconds, dead } =>
-            crate::ops::mark(&path, &provider, crate::ops::MarkOpts { id, status, reason, seconds, dead }),
+        Cmd::List { provider } | Cmd::Status { provider } => {
+            crate::ops::status(&path, provider.as_deref())
+        }
+        Cmd::Mark {
+            provider,
+            id,
+            status,
+            reason,
+            seconds,
+            dead,
+        } => crate::ops::mark(
+            &path,
+            &provider,
+            crate::ops::MarkOpts {
+                id,
+                status,
+                reason,
+                seconds,
+                dead,
+            },
+        ),
         Cmd::Rotate { provider } => crate::ops::rotate(&path, &provider),
         Cmd::Clear { provider, id } => crate::ops::clear(&path, &provider, id.as_deref()),
         Cmd::Use { provider } => crate::ops::use_pool(&path, &provider),
         Cmd::Resolve { provider, reveal } => crate::ops::resolve(&path, &provider, reveal),
         Cmd::Env { provider, var } => crate::ops::env_line(&path, &provider, &var),
         Cmd::Apply { provider, activate } => crate::ops::apply(&path, &provider, activate),
-        Cmd::Config { provider, base_url, strategy, watch_tool_errors, models } =>
-            crate::ops::config_set(&path, &provider, base_url.as_deref(), strategy.as_deref(), watch_tool_errors, models),
-        Cmd::Request { provider, method, path: up, body } =>
-            crate::ops::request(&path, &provider, &method, &up, body.as_deref().map(str::as_bytes)),
+        Cmd::Config {
+            provider,
+            base_url,
+            strategy,
+            watch_tool_errors,
+            models,
+        } => crate::ops::config_set(
+            &path,
+            &provider,
+            base_url.as_deref(),
+            strategy.as_deref(),
+            watch_tool_errors,
+            models,
+        ),
+        Cmd::Request {
+            provider,
+            method,
+            path: up,
+            body,
+        } => crate::ops::request(
+            &path,
+            &provider,
+            &method,
+            &up,
+            body.as_deref().map(str::as_bytes),
+        ),
         Cmd::Models { provider } => {
             let rows = crate::ops::models(&path, &provider)?;
-            Ok(rows.iter().filter_map(|r| r.get("id").and_then(|i| i.as_str()).map(str::to_string)).collect::<Vec<_>>().join("\n"))
+            Ok(rows
+                .iter()
+                .filter_map(|r| r.get("id").and_then(|i| i.as_str()).map(str::to_string))
+                .collect::<Vec<_>>()
+                .join("\n"))
         }
-        Cmd::Setup { provider, from_auth, label, base_url } => {
-            crate::ops::add(&path, &provider, &format!("auth:{from_auth}"), label.as_deref(), base_url.as_deref())
-        }
+        Cmd::Setup {
+            provider,
+            from_auth,
+            label,
+            base_url,
+        } => crate::ops::add(
+            &path,
+            &provider,
+            &format!("auth:{from_auth}"),
+            label.as_deref(),
+            base_url.as_deref(),
+        ),
         Cmd::Manifest => Ok(crate::manifest::manifest().to_string()),
         Cmd::Sidecar => Err("sidecar runs on stdio".into()), // handled in main.rs
     }

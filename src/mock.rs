@@ -88,8 +88,8 @@ impl MockEndpoint {
         };
         let raw = std::fs::read_to_string(&path)
             .map_err(|e| format!("cannot read mock file {}: {e}", path.display()))?;
-        let file: MockFile =
-            serde_json::from_str(&raw).map_err(|e| format!("bad mock file {}: {e}", path.display()))?;
+        let file: MockFile = serde_json::from_str(&raw)
+            .map_err(|e| format!("bad mock file {}: {e}", path.display()))?;
         Ok(Self { file })
     }
 

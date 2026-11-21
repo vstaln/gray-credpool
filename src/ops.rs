@@ -68,7 +68,11 @@ fn status_of(name: &str, p: &PoolFile) -> String {
         cold,
         p.entries.len(),
         p.strategy,
-        if p.base_url.is_empty() { "(unset)".to_string() } else { p.base_url.clone() },
+        if p.base_url.is_empty() {
+            "(unset)".to_string()
+        } else {
+            p.base_url.clone()
+        },
         match next {
             Some(t) => format!(" · next cold {}", fmt_epoch(Some(t))),
             None => String::new(),
@@ -89,7 +93,10 @@ pub fn status(path: &Path, pool: Option<&str>) -> Result<String, String> {
     let mut out = String::new();
     match pool {
         Some(name) => {
-            let p = f.pools.get(name).ok_or_else(|| format!("unknown pool '{name}'"))?;
+            let p = f
+                .pools
+                .get(name)
+                .ok_or_else(|| format!("unknown pool '{name}'"))?;
             out.push_str(&status_of(name, p));
         }
         None => {
@@ -123,7 +130,12 @@ pub fn add(
     if let Some(u) = base_url {
         p.base_url = u.to_string();
     }
-    let prio = p.entries.iter().map(|e| e.priority).max().map_or(0, |m| m + 1);
+    let prio = p
+        .entries
+        .iter()
+        .map(|e| e.priority)
+        .max()
+        .map_or(0, |m| m + 1);
     let e = PooledKey::new(key_ref, label.map(str::to_string), prio);
     let id = e.id.clone();
     p.entries.push(e);
@@ -162,7 +174,9 @@ pub fn mark(path: &Path, pool_name: &str, opts: MarkOpts) -> Result<String, Stri
         .get_mut(pool_name)
         .ok_or_else(|| format!("unknown pool '{pool_name}'"))?;
     let Some(idx) = pool::find_failed(p, opts.id.as_deref(), None) else {
-        return Err(format!("pool '{pool_name}': no entry to mark (empty selection)"));
+        return Err(format!(
+            "pool '{pool_name}': no entry to mark (empty selection)"
+        ));
     };
     let now = now();
     let reset_at = opts.seconds.map(|s| now + s);
@@ -177,7 +191,12 @@ pub fn mark(path: &Path, pool_name: &str, opts: MarkOpts) -> Result<String, Stri
         opts.dead,
     );
     let e = &p.entries[idx];
-    let sole = p.entries.iter().filter(|x| x.status != pool::STATUS_DEAD).count() <= 1;
+    let sole = p
+        .entries
+        .iter()
+        .filter(|x| x.status != pool::STATUS_DEAD)
+        .count()
+        <= 1;
     let until = pool::exhausted_until(e, sole);
     let label = e.label.clone();
     store::save(path, &f).map_err(|e| e.to_string())?;
@@ -226,7 +245,10 @@ pub fn clear(path: &Path, pool_name: &str, id: Option<&str>) -> Result<String, S
         }
     }
     store::save(path, &f).map_err(|e| e.to_string())?;
-    Ok(format!("cleared {cleared} entr{} in '{pool_name}'", if cleared == 1 { "y" } else { "ies" }))
+    Ok(format!(
+        "cleared {cleared} entr{} in '{pool_name}'",
+        if cleared == 1 { "y" } else { "ies" }
+    ))
 }
 
 pub fn use_pool(path: &Path, pool_name: &str) -> Result<String, String> {
@@ -277,10 +299,16 @@ pub fn apply(path: &Path, pool_name: &str, activate: bool) -> Result<String, Str
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .map(|v: serde_json::Value| v.as_object().cloned().unwrap_or_default())
         .unwrap_or_default();
-    auth.insert(pool_name.to_string(), serde_json::Value::String(key.clone()));
+    auth.insert(
+        pool_name.to_string(),
+        serde_json::Value::String(key.clone()),
+    );
     let tmp = auth_path.with_extension("tmp");
-    std::fs::write(&tmp, serde_json::to_string_pretty(&auth).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    std::fs::write(
+        &tmp,
+        serde_json::to_string_pretty(&auth).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -298,8 +326,11 @@ pub fn apply(path: &Path, pool_name: &str, activate: bool) -> Result<String, Str
         cfg["credential_source"] = serde_json::Value::String(String::new());
         cfg["auth_mode"] = serde_json::Value::String("api_key".into());
         let tmp = cfg_path.with_extension("tmp");
-        std::fs::write(&tmp, serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
+        std::fs::write(
+            &tmp,
+            serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -337,7 +368,10 @@ pub fn config_set(
     }
     if let Some(s) = strategy {
         if !pool::STRATEGIES.contains(&s) {
-            return Err(format!("unknown strategy '{s}' ({})", pool::STRATEGIES.join("|")));
+            return Err(format!(
+                "unknown strategy '{s}' ({})",
+                pool::STRATEGIES.join("|")
+            ));
         }
         p.strategy = s.to_string();
         changed.push(format!("strategy={s}"));
@@ -380,7 +414,7 @@ pub fn request(
     }
     let mut out = String::new();
     if crate::mock::is_mock(&base_url) {
-        let endpoint = crate::mock::MockEndpoint::load(&base_url).map_err(|e| e)?;
+        let endpoint = crate::mock::MockEndpoint::load(&base_url)?;
         let fwd = crate::upstream::forward(path, pool_name, |_entry, key| {
             let r = endpoint.respond(key);
             Ok(crate::upstream::UpstreamHead {
@@ -389,7 +423,11 @@ pub fn request(
                     .headers
                     .get("retry-after")
                     .and_then(|v| v.parse::<f64>().ok()),
-                headers: r.headers.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                headers: r
+                    .headers
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
                 reader: Box::new(std::io::Cursor::new(r.body)),
             })
         });
@@ -407,14 +445,15 @@ pub fn request(
     Ok(out)
 }
 
-fn render_forward(
-    fwd: Result<crate::upstream::Forward, crate::upstream::PoolDrained>,
-) -> String {
+fn render_forward(fwd: Result<crate::upstream::Forward, crate::upstream::PoolDrained>) -> String {
     let mut out = String::new();
     match fwd {
         Ok(f) => {
             for a in &f.attempts {
-                out.push_str(&format!("  [{}] {} → {}\n", a.key_id, a.key_label, a.outcome));
+                out.push_str(&format!(
+                    "  [{}] {} → {}\n",
+                    a.key_id, a.key_label, a.outcome
+                ));
             }
             out.push_str(&format!("final: HTTP {}\n", f.head.status));
             if !f.buffered.is_empty() {
@@ -424,13 +463,12 @@ fn render_forward(
             } else {
                 use std::io::Read;
                 let mut buf = Vec::new();
-                let _ = f
-                    .head
-                    .reader
-                    .take(64 * 1024)
-                    .read_to_end(&mut buf);
+                let _ = f.head.reader.take(64 * 1024).read_to_end(&mut buf);
                 out.push_str(
-                    &String::from_utf8_lossy(&buf).chars().take(2000).collect::<String>(),
+                    &String::from_utf8_lossy(&buf)
+                        .chars()
+                        .take(2000)
+                        .collect::<String>(),
                 );
                 out.push('\n');
             }
@@ -440,7 +478,10 @@ fn render_forward(
         }
         Err(d) => {
             for a in &d.attempts {
-                out.push_str(&format!("  [{}] {} → {}\n", a.key_id, a.key_label, a.outcome));
+                out.push_str(&format!(
+                    "  [{}] {} → {}\n",
+                    a.key_id, a.key_label, a.outcome
+                ));
             }
             out.push_str(&format!(
                 "pool drained: {} (next cold {})\n",
@@ -467,7 +508,9 @@ pub fn models(path: &Path, pool_name: &str) -> Result<Vec<serde_json::Value>, St
             .collect());
     }
     if p.base_url.is_empty() {
-        return Err(format!("pool '{pool_name}' has no base_url and no static models"));
+        return Err(format!(
+            "pool '{pool_name}' has no base_url and no static models"
+        ));
     }
     if crate::mock::is_mock(&p.base_url) {
         let m = crate::mock::MockEndpoint::load(&p.base_url)?;

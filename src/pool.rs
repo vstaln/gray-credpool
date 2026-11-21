@@ -126,7 +126,11 @@ pub fn exhausted_until(entry: &PooledKey, sole: bool) -> Option<f64> {
         return entry.reset_at;
     }
     entry.status_at.map(|at| {
-        at + exhausted_ttl(entry.last_error_code, sole, entry.last_error_reason.as_deref())
+        at + exhausted_ttl(
+            entry.last_error_code,
+            sole,
+            entry.last_error_reason.as_deref(),
+        )
     })
 }
 
@@ -149,7 +153,11 @@ pub fn is_rotatable_status(code: Option<u16>) -> bool {
 }
 
 fn sole(pool: &crate::store::PoolFile) -> bool {
-    pool.entries.iter().filter(|e| e.status != STATUS_DEAD).count() <= 1
+    pool.entries
+        .iter()
+        .filter(|e| e.status != STATUS_DEAD)
+        .count()
+        <= 1
 }
 
 /// Lift expired cooldowns in place. Returns true when anything changed
@@ -178,8 +186,9 @@ pub fn cold_indices(pool: &crate::store::PoolFile, now: f64) -> Vec<usize> {
         .enumerate()
         .filter(|(_, e)| match e.status.as_str() {
             s if s == STATUS_DEAD => false,
-            s if s == STATUS_EXHAUSTED => exhausted_until(e, is_sole)
-                .is_none_or(|until| now >= until),
+            s if s == STATUS_EXHAUSTED => {
+                exhausted_until(e, is_sole).is_none_or(|until| now >= until)
+            }
             _ => true,
         })
         .map(|(i, _)| i)
@@ -199,12 +208,18 @@ pub fn select(pool: &mut crate::store::PoolFile, now: f64) -> Option<usize> {
         return None;
     }
     let pick = match pool.strategy.as_str() {
-        STRATEGY_RANDOM => cold[(crate::now().to_bits() as usize ^ cold.len().wrapping_mul(2654435761)) % cold.len()],
+        STRATEGY_RANDOM => {
+            cold[(crate::now().to_bits() as usize ^ cold.len().wrapping_mul(2654435761))
+                % cold.len()]
+        }
         STRATEGY_LEAST_USED => *cold
             .iter()
             .min_by_key(|&&i| (pool.entries[i].request_count, pool.entries[i].priority))
             .unwrap(),
-        _ => *cold.iter().min_by_key(|&&i| pool.entries[i].priority).unwrap(),
+        _ => *cold
+            .iter()
+            .min_by_key(|&&i| pool.entries[i].priority)
+            .unwrap(),
     };
     pool.entries[pick].request_count += 1;
     pool.entries[pick].status_at.get_or_insert(now);
@@ -254,6 +269,7 @@ pub fn find_failed(
 
 /// Mark an entry hot. `reset_at` (provider-declared instant) overrides the
 /// status-derived TTL. `dead` benches permanently until `clear`.
+#[allow(clippy::too_many_arguments)]
 pub fn mark(
     pool: &mut crate::store::PoolFile,
     index: usize,
@@ -372,7 +388,16 @@ mod tests {
     fn reset_at_overrides_ttl() {
         let mut p = pool_with(&["env:A", "env:B"]);
         let now = 1000.0;
-        mark(&mut p, 0, Some(429), None, None, Some(now + 5.0), now, false);
+        mark(
+            &mut p,
+            0,
+            Some(429),
+            None,
+            None,
+            Some(now + 5.0),
+            now,
+            false,
+        );
         assert_eq!(exhausted_until(&p.entries[0], false), Some(now + 5.0));
         // After the declared reset the key is cold again.
         let i = select(&mut p, now + 6.0).unwrap();
@@ -387,7 +412,16 @@ mod tests {
         // Sole + non-billing: 60s cap, not 1h.
         assert_eq!(exhausted_until(&p.entries[0], true), Some(now + 60.0));
         // Billing keeps the full bench.
-        mark(&mut p, 0, Some(402), Some(FAILURE_BILLING), None, None, now, false);
+        mark(
+            &mut p,
+            0,
+            Some(402),
+            Some(FAILURE_BILLING),
+            None,
+            None,
+            now,
+            false,
+        );
         assert_eq!(exhausted_until(&p.entries[0], true), Some(now + 3600.0));
     }
 
@@ -429,7 +463,10 @@ mod tests {
         let now = 0.0;
         // After marking the sole entry, its capped TTL still benches it:
         // rotation must report no-recovery, not re-hand the same key.
-        assert_eq!(mark_and_rotate(&mut p, 0, Some(402), Some(FAILURE_BILLING), None, None, now), None);
+        assert_eq!(
+            mark_and_rotate(&mut p, 0, Some(402), Some(FAILURE_BILLING), None, None, now),
+            None
+        );
     }
 
     #[test]
