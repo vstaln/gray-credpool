@@ -222,7 +222,11 @@ fn handle_conn(s: &mut TcpStream, intents: &Intents) {
         write_resp(s, 404, &[], b"not found");
         return;
     }
-    let pool_name = match intents.lock().ok().and_then(|m| m.get(bearer.as_str()).map(|i| i.pool.clone())) {
+    let pool_name = match intents
+        .lock()
+        .ok()
+        .and_then(|m| m.get(bearer.as_str()).map(|i| i.pool.clone()))
+    {
         Some(p) => p,
         None => {
             write_resp(s, 404, &[], b"not found");
@@ -261,7 +265,11 @@ fn serve_turn(s: &mut TcpStream, pool_name: &str, method: &str, upstream_path: &
                     .headers
                     .get("retry-after")
                     .and_then(|v| v.parse::<f64>().ok()),
-                headers: r.headers.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                headers: r
+                    .headers
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
                 reader: Box::new(std::io::Cursor::new(r.body)),
             })
         });
@@ -286,10 +294,18 @@ fn finish(s: &mut TcpStream, fwd: Result<crate::upstream::Forward, crate::upstre
     match fwd {
         Ok(forward) => {
             for a in &forward.attempts {
-                eprintln!("credpool relay: {} ({}) → {}", a.key_label, a.key_id, a.outcome);
+                eprintln!(
+                    "credpool relay: {} ({}) → {}",
+                    a.key_label, a.key_id, a.outcome
+                );
             }
             if forward.head.status >= 400 || !forward.buffered.is_empty() {
-                write_resp(s, forward.head.status, &forward.head.headers, &forward.buffered);
+                write_resp(
+                    s,
+                    forward.head.status,
+                    &forward.head.headers,
+                    &forward.buffered,
+                );
             } else {
                 let mut head = forward.head;
                 let _ = write_stream(s, head.status, &head.headers, &mut *head.reader);

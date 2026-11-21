@@ -12,6 +12,7 @@ use gray_credpool::{ops, pool, relay, store};
 struct Fixture {
     _dir: tempfile::TempDir,
     pool_path: PathBuf,
+    #[allow(dead_code)]
     mock_path: PathBuf,
     pool_name: String,
 }
@@ -74,8 +75,14 @@ fn entry_statuses(path: &Path, pool_name: &str) -> Vec<(String, String)> {
 #[test]
 fn three_key_pool_rotates_after_forced_429s() {
     let fx = fixture();
-    let out = ops::request(&fx.pool_path, &fx.pool_name, "POST", "/responses", Some(b"{}"))
-        .expect("request");
+    let out = ops::request(
+        &fx.pool_path,
+        &fx.pool_name,
+        "POST",
+        "/responses",
+        Some(b"{}"),
+    )
+    .expect("request");
     eprintln!("{out}");
     // Attempt log shows the walk: key1 429, key2 429, key3 200.
     assert!(out.contains("key1"), "attempt log names key1: {out}");
@@ -99,13 +106,31 @@ fn three_key_pool_rotates_after_forced_429s() {
 #[test]
 fn hot_keys_are_skipped_on_next_request() {
     let fx = fixture();
-    ops::request(&fx.pool_path, &fx.pool_name, "POST", "/responses", Some(b"{}"))
-        .expect("first request");
-    let out = ops::request(&fx.pool_path, &fx.pool_name, "POST", "/responses", Some(b"{}"))
-        .expect("second request");
+    ops::request(
+        &fx.pool_path,
+        &fx.pool_name,
+        "POST",
+        "/responses",
+        Some(b"{}"),
+    )
+    .expect("first request");
+    let out = ops::request(
+        &fx.pool_path,
+        &fx.pool_name,
+        "POST",
+        "/responses",
+        Some(b"{}"),
+    )
+    .expect("second request");
     assert!(out.contains("HTTP 200"));
-    assert!(!out.contains("key1 →"), "benched key1 is not retried: {out}");
-    assert!(!out.contains("key2 →"), "benched key2 is not retried: {out}");
+    assert!(
+        !out.contains("key1 →"),
+        "benched key1 is not retried: {out}"
+    );
+    assert!(
+        !out.contains("key2 →"),
+        "benched key2 is not retried: {out}"
+    );
 }
 
 #[test]
@@ -126,8 +151,14 @@ fn drained_pool_reports_next_available() {
         )
         .unwrap();
     }
-    let out = ops::request(&fx.pool_path, &fx.pool_name, "POST", "/responses", Some(b"{}"))
-        .expect("drained request still returns a report");
+    let out = ops::request(
+        &fx.pool_path,
+        &fx.pool_name,
+        "POST",
+        "/responses",
+        Some(b"{}"),
+    )
+    .expect("drained request still returns a report");
     assert!(out.contains("pool drained"), "{out}");
     assert!(out.contains("next cold"), "{out}");
 }
@@ -162,11 +193,15 @@ fn relay_rotates_inside_one_post() {
         None => unsafe { std::env::remove_var("GRAY_HOME") },
     }
     assert!(text.starts_with("HTTP/1.1 200"), "relay response: {text}");
-    assert!(text.contains("\"ok\":true") || text.contains("\"ok\": true"), "{text}");
+    assert!(
+        text.contains("\"ok\":true") || text.contains("\"ok\": true"),
+        "{text}"
+    );
 
     let statuses = entry_statuses(&fx.pool_path, &fx.pool_name);
     assert_eq!(
-        statuses[0].1, pool::STATUS_EXHAUSTED,
+        statuses[0].1,
+        pool::STATUS_EXHAUSTED,
         "key1 benched mid-request: {statuses:?}"
     );
     assert_eq!(statuses[2].1, pool::STATUS_OK);
@@ -176,12 +211,18 @@ fn relay_rotates_inside_one_post() {
 fn cooldown_expiry_restores_key() {
     let fx = fixture();
     // mock gives key1 a 0.1s Retry-After — after the first walk it expires.
-    ops::request(&fx.pool_path, &fx.pool_name, "POST", "/responses", Some(b"{}"))
-        .unwrap();
+    ops::request(
+        &fx.pool_path,
+        &fx.pool_name,
+        "POST",
+        "/responses",
+        Some(b"{}"),
+    )
+    .unwrap();
     std::thread::sleep(std::time::Duration::from_millis(150));
     let f = store::load(&fx.pool_path).unwrap();
     let p = &f.pools[&fx.pool_name];
     // select() clears expired exhaustion — cold count is back to ≥1.
     let mut p2 = p.clone();
-    assert!(!pool::cold_indices(&mut p2, gray_credpool::now()).is_empty());
+    assert!(!pool::cold_indices(&p2, gray_credpool::now()).is_empty());
 }

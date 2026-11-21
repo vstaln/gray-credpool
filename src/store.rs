@@ -94,6 +94,7 @@ fn lock_for(path: &Path) -> anyhow::Result<PoolLock> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(lock_path(path))?;
     // Blocking lock: pool mutations are sub-millisecond, waiting is fine.
     file.lock()?;

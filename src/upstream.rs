@@ -275,7 +275,10 @@ pub fn forward(
         // Failure: buffer the body so the mark decision and (if the pool
         // is drained) the verbatim surface both see it.
         let body = read_capped(&mut *head.reader, ERROR_BODY_CAP);
-        let snippet = String::from_utf8_lossy(&body).chars().take(300).collect::<String>();
+        let snippet = String::from_utf8_lossy(&body)
+            .chars()
+            .take(300)
+            .collect::<String>();
         attempts.push(Attempt {
             key_id: entry.id.clone(),
             key_label: entry.label.clone(),
@@ -321,6 +324,7 @@ pub fn forward(
 /// Mark `entry_id` hot under the lock; returns true when another cold
 /// entry remains (rotation is possible). Errors are logged, never fatal —
 /// a failed mark must not wedge the request.
+#[allow(clippy::too_many_arguments)]
 fn mark_and_report(
     store_path: &Path,
     pool_name: &str,

@@ -34,10 +34,7 @@ pub fn parse(raw: &str) -> anyhow::Result<KeyRef> {
         return Ok(KeyRef::File(path.to_string()));
     }
     if let Some(cmd) = raw.strip_prefix("cmd:") {
-        let words: Vec<String> = cmd
-            .split_whitespace()
-            .map(str::to_string)
-            .collect();
+        let words: Vec<String> = cmd.split_whitespace().map(str::to_string).collect();
         anyhow::ensure!(!words.is_empty(), "cmd: reference needs a command");
         return Ok(KeyRef::Cmd(words));
     }
@@ -64,8 +61,7 @@ fn expand_tilde(path: &str) -> PathBuf {
 pub fn resolve(key_ref: &str) -> Result<String, String> {
     let parsed = parse(key_ref).map_err(|e| e.to_string())?;
     let value = match parsed {
-        KeyRef::Env(var) => std::env::var(&var)
-            .map_err(|_| format!("env var {var} is not set"))?,
+        KeyRef::Env(var) => std::env::var(&var).map_err(|_| format!("env var {var} is not set"))?,
         KeyRef::File(path) => {
             let path = expand_tilde(&path);
             std::fs::read_to_string(&path)
@@ -78,10 +74,7 @@ pub fn resolve(key_ref: &str) -> Result<String, String> {
                 .output()
                 .map_err(|e| format!("cannot run {prog}: {e}"))?;
             if !out.status.success() {
-                return Err(format!(
-                    "{prog} exited {}",
-                    out.status.code().unwrap_or(-1)
-                ));
+                return Err(format!("{prog} exited {}", out.status.code().unwrap_or(-1)));
             }
             String::from_utf8_lossy(&out.stdout)
                 .lines()
@@ -127,7 +120,10 @@ mod tests {
             parse("cmd:gh auth token").unwrap(),
             KeyRef::Cmd(vec!["gh".into(), "auth".into(), "token".into()])
         );
-        assert_eq!(parse("auth:openrouter").unwrap(), KeyRef::Auth("openrouter".into()));
+        assert_eq!(
+            parse("auth:openrouter").unwrap(),
+            KeyRef::Auth("openrouter".into())
+        );
         assert!(parse("sk-literal-key").is_err());
     }
 
