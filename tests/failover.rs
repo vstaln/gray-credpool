@@ -223,6 +223,6 @@ fn cooldown_expiry_restores_key() {
     let f = store::load(&fx.pool_path).unwrap();
     let p = &f.pools[&fx.pool_name];
     // select() clears expired exhaustion — cold count is back to ≥1.
-    let mut p2 = p.clone();
+    let p2 = p.clone();
     assert!(!pool::cold_indices(&p2, gray_credpool::now()).is_empty());
 }
